@@ -1,0 +1,46 @@
+export const light = {
+  bg: '#faf8f4',
+  surface: '#ffffff',
+  surface2: '#f2efe7',
+  border: '#e7e3da',
+  text: '#14213d',
+  textSecondary: '#5b6472',
+  textMuted: '#8891a6',
+  brand: '#0f766e',
+  brandHover: '#0b5d57',
+  onBrand: '#ffffff',
+  accentBg: '#fdf0dc',
+  accentText: '#8a5a0f',
+  successBg: '#daf5e9',
+  successText: '#046c4e',
+  warningBg: '#fff3d8',
+  warningText: '#9a5b03',
+  dangerBg: '#ffe4e6',
+  dangerText: '#9f1239',
+  logoNavy: '#1C2B4A',
+};
+
+export const dark = {
+  bg: '#0f1626',
+  surface: '#16213d',
+  surface2: '#1b2740',
+  border: '#26314a',
+  text: '#f4f2ed',
+  textSecondary: '#9aa5bc',
+  textMuted: '#6b7a99',
+  brand: '#2dd4bf',
+  brandHover: '#5eead4',
+  onBrand: '#082622',
+  accentBg: '#3a2b0e',
+  accentText: '#f5c67a',
+  successBg: '#123d32',
+  successText: '#8ce6c4',
+  warningBg: '#4a3513',
+  warningText: '#f5c67a',
+  dangerBg: '#4a202b',
+  dangerText: '#ffb4c0',
+  logoNavy: '#f4f2ed',
+};
+
+export type ThemeColors = typeof light;
+export const colors = light;
