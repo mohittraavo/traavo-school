@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
-export default function Topbar({ toggle, session, onLogout, title }: any) {
+export type Crumb = { label: string; route?: string };
+
+export default function Topbar({ toggle, session, onLogout, title, crumbs, navigation }: any) {
   const { colors, toggle: toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const { width } = useWindowDimensions();
   const showMenuButton = width < 820;
+  const compact = showMenuButton;
 
   return (
-    <View style={[styles.topbar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <View style={[styles.topbar, { backgroundColor: colors.surface, borderBottomColor: colors.border }, compact && styles.topbarCompact]}>
       <View style={styles.row}>
         <View style={styles.left}>
           {showMenuButton ? (
@@ -17,7 +20,10 @@ export default function Topbar({ toggle, session, onLogout, title }: any) {
               <Text style={{ color: colors.textSecondary, fontSize: 18 }}>☰</Text>
             </Pressable>
           ) : null}
-          <Text style={[styles.title, { color: colors.text }]}>{title || 'Dashboard'}</Text>
+          <View style={styles.heading}>
+            <Breadcrumbs crumbs={crumbs} navigation={navigation} />
+            <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>{title || 'Dashboard'}</Text>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -59,6 +65,31 @@ export default function Topbar({ toggle, session, onLogout, title }: any) {
   );
 }
 
+function Breadcrumbs({ crumbs, navigation }: { crumbs?: Crumb[]; navigation?: { navigate?: (route: string) => void } }) {
+  const { colors } = useTheme();
+  const trail = crumbs?.length ? crumbs : [{ label: 'Dashboard' }];
+  return (
+    <View style={styles.crumbs}>
+      {trail.map((crumb, index) => {
+        const current = index === trail.length - 1;
+        const pressable = Boolean(crumb.route) && !current;
+        return (
+          <View key={`${crumb.label}-${index}`} style={styles.crumbItem}>
+            {index > 0 ? <Text style={[styles.crumbSep, { color: colors.textMuted }]}>/</Text> : null}
+            {pressable ? (
+              <Pressable onPress={() => navigation?.navigate?.(crumb.route!)} hitSlop={6}>
+                <Text style={[styles.crumbText, { color: colors.brand }]}>{crumb.label}</Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.crumbText, { color: current ? colors.textSecondary : colors.textMuted, fontWeight: current ? '600' : '500' }]}>{crumb.label}</Text>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   topbar: {
     minHeight: 84,
@@ -68,9 +99,18 @@ const styles = StyleSheet.create({
     zIndex: 50,
     justifyContent: 'center',
   },
+  topbarCompact: {
+    minHeight: 72,
+    paddingHorizontal: 12,
+  },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   left: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
-  title: { fontSize: 24, fontWeight: '700', fontFamily: 'Poppins' },
+  heading: { flex: 1, minWidth: 0, gap: 2 },
+  crumbs: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  crumbItem: { flexDirection: 'row', alignItems: 'center' },
+  crumbText: { fontSize: 12, fontFamily: 'Inter' },
+  crumbSep: { fontSize: 12, marginHorizontal: 6 },
+  title: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: {
     width: 40,

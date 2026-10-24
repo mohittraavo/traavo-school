@@ -1,7 +1,19 @@
-export { API_BASE } from './config';
 import { API_BASE, TOKEN_KEY } from './config';
 
+export { API_BASE };
+
 let authToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+function rejectUnauthorized(path: string, status: number) {
+  if (status !== 401 || path.startsWith('/school/auth/login')) return;
+  setAuthToken(null);
+  unauthorizedHandler?.();
+}
 
 export function getStoredToken(): string | null {
   if (typeof localStorage === 'undefined') return authToken;
@@ -39,6 +51,7 @@ export async function apiJson<T>(path: string, options: RequestInit = {}): Promi
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    rejectUnauthorized(path, res.status);
     throw new Error(data.message || data.error || `Request failed (${res.status})`);
   }
   return data as T;
@@ -46,7 +59,10 @@ export async function apiJson<T>(path: string, options: RequestInit = {}): Promi
 
 export async function apiDownload(path: string, filename: string) {
   const res = await apiFetch(path);
-  if (!res.ok) throw new Error('Download failed');
+  if (!res.ok) {
+    rejectUnauthorized(path, res.status);
+    throw new Error('Download failed');
+  }
   const blob = await res.blob();
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   const href = window.URL.createObjectURL(blob);

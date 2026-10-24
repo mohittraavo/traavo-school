@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { getStoredToken, setAuthToken } from '../api/client';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { getStoredToken, setAuthToken, setUnauthorizedHandler } from '../api/client';
 import { schoolLogin, schoolLogout, schoolSession, type SchoolAuthUser } from '../api/auth';
 
 export type SchoolRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT';
@@ -32,18 +32,28 @@ function toSession(user: SchoolAuthUser): SchoolSession {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    const existing = getStoredToken();
+    setAuthToken(existing);
+    return existing;
+  });
   const [session, setSession] = useState<SchoolSession | null>(null);
-  const [booting, setBooting] = useState(true);
+  const [booting, setBooting] = useState(() => Boolean(getStoredToken()));
+
+  const expire = useCallback(() => {
+    setAuthToken(null);
+    setToken(null);
+    setSession(null);
+    setBooting(false);
+  }, []);
 
   useEffect(() => {
-    const stored = getStoredToken();
-    if (!stored) {
-      setBooting(false);
-      return;
-    }
-    setAuthToken(stored);
-    setToken(stored);
+    setUnauthorizedHandler(expire);
+    return () => setUnauthorizedHandler(null);
+  }, [expire]);
+
+  useEffect(() => {
+    if (!getStoredToken()) return;
     schoolSession()
       .then((response) => {
         setToken(response.token);

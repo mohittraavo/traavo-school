@@ -108,6 +108,7 @@ export function createAppStyles(c: ThemeColors) {
     marginLeft: 12,
     fontSize: 30,
     fontWeight: '700',
+    fontFamily: 'Inter',
   },
   brandTra: { color: c.text },
   brandVo: { color: c.brand },
@@ -321,7 +322,7 @@ export function createAppStyles(c: ThemeColors) {
     gap: 16,
   },
   dashboardContentMobile: {
-    padding: 14,
+    padding: 12,
     gap: 12,
   },
   topbar: {
@@ -545,6 +546,11 @@ export function createAppStyles(c: ThemeColors) {
     borderWidth: 1,
     borderColor: c.border,
     padding: 12,
+  },
+  statCellMobile: {
+    flexBasis: '100%',
+    minWidth: 0,
+    width: '100%',
   },
   statLabel: {
     color: c.textSecondary,

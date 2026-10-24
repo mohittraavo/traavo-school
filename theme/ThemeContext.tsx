@@ -24,17 +24,19 @@ function applyDomTheme(name: ThemeName) {
   document.body.style.background = name === 'dark' ? dark.bg : light.bg;
   document.body.style.color = name === 'dark' ? dark.text : light.text;
   document.body.style.fontFamily = '"Inter", -apple-system, sans-serif';
+  document.documentElement.style.colorScheme = name === 'dark' ? 'dark' : 'light';
+}
+
+function storedTheme(): ThemeName {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('travo-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+  }
+  return 'light';
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [name, setName] = useState<ThemeName>('light');
-
-  useEffect(() => {
-    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-      const stored = localStorage.getItem('travo-theme');
-      if (stored === 'dark' || stored === 'light') setName(stored);
-    }
-  }, []);
+  const [name, setName] = useState<ThemeName>(storedTheme);
 
   useEffect(() => {
     applyDomTheme(name);

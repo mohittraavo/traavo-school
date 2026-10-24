@@ -7,12 +7,23 @@ import Topbar from './components/Topbar';
 import Sidebar from './components/Sidebar';
 import { createDrawerNavigator } from './navigation/drawer';
 import StudentsManager from './components/StudentsManager';
+import StudentFormPage from './components/StudentFormModal';
+import StaffDirectory, { StaffDashboardSummary } from './components/StaffDirectory';
+import TeachingAssignments from './components/TeachingAssignments';
+import FeeStructureManager from './components/FeeStructureManager';
+import FeeDashboardSummary from './components/FeeDashboardSummary';
+import AcademicSetup from './components/AcademicSetup';
+import AdmissionsManager, { AdmissionsDashboardSummary } from './components/AdmissionsManager';
 import TravoLogo from './components/TravoLogo';
+import { LoadableErrorBoundary } from './components/ui/LoadableErrorBoundary';
 import { ThemeProvider, useAppStyles, useTheme } from './theme/ThemeContext';
 import { AuthProvider, useAuth, type SchoolSession } from './auth/AuthContext';
 
 if (Platform.OS === 'web') {
+  // Side-effect imports that only exist on web.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('react-native-gesture-handler');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('./theme.css');
 }
 
@@ -30,13 +41,6 @@ type Campus = {
   fees: string;
 };
 
-const roleLabels: Record<Role, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-  TEACHER: 'Teacher',
-  STUDENT: 'Student',
-};
-
 const campuses: Campus[] = [
   { id: 'main', name: 'Green Valley Main Campus', city: 'Noida', students: 2140, teachers: 118, attendance: '96.8%', fees: '₹18.2L' },
   { id: 'east', name: 'Green Valley East Campus', city: 'Greater Noida', students: 1665, teachers: 92, attendance: '95.5%', fees: '₹14.7L' },
@@ -51,9 +55,11 @@ const Drawer = Platform.OS === 'web' ? createDrawerNavigator() : null;
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppRoot />
-      </AuthProvider>
+      <LoadableErrorBoundary>
+        <AuthProvider>
+          <AppRoot />
+        </AuthProvider>
+      </LoadableErrorBoundary>
     </ThemeProvider>
   );
 }
@@ -77,7 +83,7 @@ function AppRoot() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style={name === 'dark' ? 'light' : 'dark'} />
-      <NavigationContainer>
+      <NavigationContainer linking={Platform.OS === 'web' ? (session ? drawerLinking : authLinking) : undefined}>
         {session ? (
           <AppDrawer session={session} onLogout={logout} isMobile={isMobile} />
         ) : (
@@ -149,10 +155,10 @@ function AuthScreen({ isMobile }: { isMobile: boolean }) {
         <View style={[styles.loginLeftCard, isMobile && styles.loginLeftCardMobile]}>
           <View style={styles.logoRow}>
             <TravoLogo size={54} />
-            <Text style={styles.brandText}><Text style={styles.brandTra}>Tra</Text><Text style={styles.brandVo}>vo</Text></Text>
+            <Text style={styles.brandText}><Text style={styles.brandTra}>Traa</Text><Text style={styles.brandVo}>vo</Text></Text>
           </View>
           <Text style={styles.loginKicker}>School Workspace</Text>
-          <Text style={styles.heroTitle}>Travo School Management</Text>
+          <Text style={styles.heroTitle}>Traavo School Management</Text>
           <Text style={styles.heroSubtitle}>Manage students, campuses, staff, and admissions from one secure school workspace.</Text>
           <View style={styles.loginValueCard}>
             <Text style={styles.infoTitle}>Bulk student intake</Text>
@@ -160,14 +166,14 @@ function AuthScreen({ isMobile }: { isMobile: boolean }) {
           </View>
           <View style={styles.loginValueCard}>
             <Text style={styles.infoTitle}>Campus operations</Text>
-            <Text style={styles.infoText}>Track attendance, fees, and staff from the same Travo design system as TCMS.</Text>
+            <Text style={styles.infoText}>Track attendance, fees, and staff from the same Traavo design system as TCMS.</Text>
           </View>
         </View>
       ) : (
         <View style={styles.mobileHeader}>
           <View style={styles.logoRow}>
             <TravoLogo size={36} />
-            <Text style={styles.brandText}><Text style={styles.brandTra}>Tra</Text><Text style={styles.brandVo}>vo</Text></Text>
+            <Text style={styles.brandText}><Text style={styles.brandTra}>Traa</Text><Text style={styles.brandVo}>vo</Text></Text>
           </View>
         </View>
       )}
@@ -239,25 +245,47 @@ function AppDrawer({ session, onLogout, isMobile }: { session: Session; onLogout
           overlayColor: 'rgba(20, 33, 61, 0.34)',
           drawerStyle: isMobile ? { backgroundColor: colors.surface, width: 280 } : { width: 260, backgroundColor: colors.surface, borderRightWidth: 1, borderRightColor: colors.border },
         }}
-        drawerContent={(props) => <CustomDrawerContent {...props} session={session} onLogout={onLogout} />}
+        drawerContent={(props: any) => <CustomDrawerContent {...props} session={session} onLogout={onLogout} />}
       >
         <Drawer.Screen name="Dashboard">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><DashboardScreen session={session} onLogout={onLogout} isMobile={isMobile} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><DashboardScreen session={session} onLogout={onLogout} isMobile={isMobile} /></ScreenWrapper>}
         </Drawer.Screen>
         <Drawer.Screen name="Campuses">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><CampusesScreen session={session} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><CampusesScreen session={session} /></ScreenWrapper>}
         </Drawer.Screen>
         <Drawer.Screen name="Staff">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><StaffScreen session={session} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><StaffDirectory /></ScreenWrapper>}
+        </Drawer.Screen>
+        <Drawer.Screen name="Teaching Assignments">
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><TeachingAssignments /></ScreenWrapper>}
         </Drawer.Screen>
         <Drawer.Screen name="Students">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><StudentsManager session={session} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><StudentsManager session={session} /></ScreenWrapper>}
+        </Drawer.Screen>
+        <Drawer.Screen name="Student Form">
+          {(props: any) => (
+            <ScreenWrapper {...props} session={session} onLogout={onLogout}>
+              <StudentFormPage
+                key={String(props.route?.params?.editingId ?? 'new')}
+                student={props.route?.params?.student ?? null}
+                editingId={props.route?.params?.editingId ?? null}
+                onClose={() => props.navigation.navigate('Students')}
+                onSaved={() => props.navigation.navigate('Students')}
+              />
+            </ScreenWrapper>
+          )}
+        </Drawer.Screen>
+        <Drawer.Screen name="Fee Structures">
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><FeeStructureManager /></ScreenWrapper>}
         </Drawer.Screen>
         <Drawer.Screen name="Admissions">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><AdmissionsScreen session={session} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><AdmissionsManager /></ScreenWrapper>}
+        </Drawer.Screen>
+        <Drawer.Screen name="Classes & Structure">
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><AcademicSetup /></ScreenWrapper>}
         </Drawer.Screen>
         <Drawer.Screen name="Settings">
-          {(props) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><SettingsScreen session={session} onLogout={onLogout} /></ScreenWrapper>}
+          {(props: any) => <ScreenWrapper {...props} session={session} onLogout={onLogout}><SettingsScreen session={session} onLogout={onLogout} /></ScreenWrapper>}
         </Drawer.Screen>
       </Drawer.Navigator>
     );
@@ -267,49 +295,83 @@ function AppDrawer({ session, onLogout, isMobile }: { session: Session; onLogout
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs">
-        {(props) => (
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
             <DashboardScreen session={session} onLogout={onLogout} isMobile={isMobile} />
           </ScreenWrapper>
         )}
       </Stack.Screen>
       <Stack.Screen name="Campuses">
-        {(props) => (
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
             <CampusesScreen session={session} />
           </ScreenWrapper>
         )}
       </Stack.Screen>
       <Stack.Screen name="Staff">
-        {(props) => (
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
-            <StaffScreen session={session} />
+            <StaffDirectory />
+          </ScreenWrapper>
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="Teaching Assignments">
+        {(props: any) => (
+          <ScreenWrapper {...props} session={session} onLogout={onLogout}>
+            <TeachingAssignments />
           </ScreenWrapper>
         )}
       </Stack.Screen>
       <Stack.Screen name="Students">
-        {(props) => (
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
             <StudentsManager session={session} />
           </ScreenWrapper>
         )}
       </Stack.Screen>
-      <Stack.Screen name="Admissions">
-        {(props) => (
+      <Stack.Screen name="Student Form">
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
-            <AdmissionsScreen session={session} />
+            <StudentFormPage
+              key={String(props.route?.params?.editingId ?? 'new')}
+              student={props.route?.params?.student ?? null}
+              editingId={props.route?.params?.editingId ?? null}
+              onClose={() => props.navigation.navigate('Students')}
+              onSaved={() => props.navigation.navigate('Students')}
+            />
+          </ScreenWrapper>
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="Fee Structures">
+        {(props: any) => (
+          <ScreenWrapper {...props} session={session} onLogout={onLogout}>
+            <FeeStructureManager />
+          </ScreenWrapper>
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="Admissions">
+        {(props: any) => (
+          <ScreenWrapper {...props} session={session} onLogout={onLogout}>
+            <AdmissionsManager />
+          </ScreenWrapper>
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="Classes & Structure">
+        {(props: any) => (
+          <ScreenWrapper {...props} session={session} onLogout={onLogout}>
+            <AcademicSetup />
           </ScreenWrapper>
         )}
       </Stack.Screen>
       <Stack.Screen name="Settings">
-        {(props) => (
+        {(props: any) => (
           <ScreenWrapper {...props} session={session} onLogout={onLogout}>
             <SettingsScreen session={session} onLogout={onLogout} />
           </ScreenWrapper>
         )}
       </Stack.Screen>
       <Stack.Screen name="Menu">
-        {(props) => (
+        {(props: any) => (
           <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
             <Text style={styles.pageTitle}>Menu</Text>
             <View style={{ marginTop: 12 }}>
@@ -317,7 +379,9 @@ function AppDrawer({ session, onLogout, isMobile }: { session: Session; onLogout
               <Pressable onPress={() => props.navigation.navigate('Campuses')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Campuses</Text></Pressable>
               <Pressable onPress={() => props.navigation.navigate('Staff')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Staff</Text></Pressable>
               <Pressable onPress={() => props.navigation.navigate('Students')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Students</Text></Pressable>
+              <Pressable onPress={() => props.navigation.navigate('Fee Structures')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Fee Structures</Text></Pressable>
               <Pressable onPress={() => props.navigation.navigate('Admissions')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Admissions</Text></Pressable>
+              <Pressable onPress={() => props.navigation.navigate('Classes & Structure')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Classes & Structure</Text></Pressable>
               <Pressable onPress={() => props.navigation.navigate('Settings')} style={[styles.secondaryButton, { marginTop: 8 }]}><Text style={styles.secondaryButtonText}>Settings</Text></Pressable>
             </View>
           </ScrollView>
@@ -327,18 +391,60 @@ function AppDrawer({ session, onLogout, isMobile }: { session: Session; onLogout
   );
 }
 
+const PAGE_META: Record<string, { title: string; crumbs: { label: string; route?: string }[] }> = {
+  MainTabs: { title: 'Dashboard', crumbs: [{ label: 'Dashboard' }] },
+  Dashboard: { title: 'Dashboard', crumbs: [{ label: 'Dashboard' }] },
+  Campuses: { title: 'Campuses', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Campuses' }] },
+  Staff: { title: 'Staff', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Staff' }] },
+  'Teaching Assignments': { title: 'Teaching Assignments', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Staff', route: 'Staff' }, { label: 'Teaching Assignments' }] },
+  Students: { title: 'Students', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Students' }] },
+  'Student Form': { title: 'Student', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Students', route: 'Students' }, { label: 'Student' }] },
+  'Fee Structures': { title: 'Fee Structures', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Fee Structures' }] },
+  Admissions: { title: 'Admissions', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Admissions' }] },
+  'Classes & Structure': { title: 'Classes & Structure', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Academics' }, { label: 'Classes & Structure' }] },
+  Settings: { title: 'Settings', crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Settings' }] },
+  Menu: { title: 'Menu', crumbs: [{ label: 'Dashboard', route: 'MainTabs' }, { label: 'Menu' }] },
+};
+
+function webLocation() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+  return window.location;
+}
+
+const drawerLinking = {
+  prefixes: [webLocation()?.origin ?? ''],
+  getInitialURL: () => webLocation()?.href ?? null,
+  config: {
+    screens: {
+      Dashboard: '',
+      Campuses: 'campuses',
+      Staff: 'staff',
+      'Teaching Assignments': 'staff/assignments',
+      Students: 'students',
+      'Student Form': 'students/form',
+      'Fee Structures': 'fee-structures',
+      Admissions: 'admissions',
+      'Classes & Structure': 'classes',
+      Settings: 'settings',
+    },
+  },
+};
+
+const authLinking = {
+  prefixes: [webLocation()?.origin ?? ''],
+  config: { screens: { SignIn: '*' } },
+};
+
 function ScreenWrapper({ children, navigation, session, onLogout }: any) {
   const route = useRoute();
   const { colors } = useTheme();
-  const titles: Record<string, string> = {
-    MainTabs: 'Dashboard',
-    Dashboard: 'Dashboard',
-    Campuses: 'Campuses',
-    Staff: 'Staff',
-    Students: 'Students',
-    Admissions: 'Admissions',
-    Settings: 'Settings',
-  };
+  const formLabel = (route.params as { editingId?: number | null } | undefined)?.editingId ? 'Edit student' : 'Add student';
+  const meta = route.name === 'Student Form'
+    ? { title: formLabel, crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: 'Students', route: 'Students' }, { label: formLabel }] }
+    : (PAGE_META[route.name] || { title: route.name, crumbs: [{ label: 'Dashboard', route: 'Dashboard' }, { label: route.name }] });
+  const routeNames: string[] = navigation?.getState?.()?.routeNames || [];
+  const home = routeNames.includes('Dashboard') ? 'Dashboard' : 'MainTabs';
+  const crumbs = meta.crumbs.map((crumb) => (crumb.route === 'Dashboard' ? { ...crumb, route: home } : crumb));
   const toggle = () => {
     if (navigation && typeof navigation.toggleDrawer === 'function') return navigation.toggleDrawer();
     if (navigation && typeof navigation.navigate === 'function') return navigation.navigate('Menu');
@@ -346,8 +452,22 @@ function ScreenWrapper({ children, navigation, session, onLogout }: any) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Topbar toggle={toggle} session={session} onLogout={onLogout} title={titles[route.name] || route.name} />
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>{children}</View>
+      {Platform.OS === 'web' ? (
+        <Pressable
+          nativeID="skip-to-content"
+          accessibilityRole="link"
+          onPress={() => {
+            const node = document.getElementById('main-content');
+            if (node instanceof HTMLElement) node.focus();
+          }}
+        >
+          <Text style={{ color: colors.onBrand, fontWeight: '700' }}>Skip to content</Text>
+        </Pressable>
+      ) : null}
+      <Topbar toggle={toggle} session={session} onLogout={onLogout} title={meta.title} crumbs={crumbs} navigation={navigation} />
+      <View nativeID="main-content" style={{ flex: 1, backgroundColor: colors.bg }} {...(Platform.OS === 'web' ? { tabIndex: -1 } : {})}>
+        <LoadableErrorBoundary>{children}</LoadableErrorBoundary>
+      </View>
     </SafeAreaView>
   );
 }
@@ -362,7 +482,6 @@ function CampusesScreen({ session }: { session: Session }) {
   const { colors } = useTheme();
   return (
     <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
-      <Text style={styles.pageTitle}>Campuses</Text>
       {campuses.map((c) => (
         <View key={c.id} style={[styles.panel, { marginTop: 12 }]}>
           <Text style={styles.panelTitle}>{c.name}</Text>
@@ -373,54 +492,11 @@ function CampusesScreen({ session }: { session: Session }) {
   );
 }
 
-function StaffScreen({ session }: { session: Session }) {
-  const styles = useAppStyles();
-  const { colors } = useTheme();
-  return (
-    <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
-      <Text style={styles.pageTitle}>Staff</Text>
-      <View style={[styles.panel, { marginTop: 12 }]}>
-        <Text style={styles.panelTitle}>Teachers</Text>
-        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Riya Kapoor · Mathematics</Text>
-      </View>
-    </ScrollView>
-  );
-}
-
-function StudentsScreen({ session }: { session: Session }) {
-  const styles = useAppStyles();
-  const { colors } = useTheme();
-  return (
-    <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
-      <Text style={styles.pageTitle}>Students</Text>
-      <View style={[styles.panel, { marginTop: 12 }]}>
-        <Text style={styles.panelTitle}>Recent admissions</Text>
-        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Aarav Singh · Grade 8</Text>
-      </View>
-    </ScrollView>
-  );
-}
-
-function AdmissionsScreen({ session }: { session: Session }) {
-  const styles = useAppStyles();
-  const { colors } = useTheme();
-  return (
-    <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
-      <Text style={styles.pageTitle}>Admissions</Text>
-      <View style={[styles.panel, { marginTop: 12 }]}>
-        <Text style={styles.panelTitle}>Pending approvals</Text>
-        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>42 applications pending</Text>
-      </View>
-    </ScrollView>
-  );
-}
-
 function SettingsScreen({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const styles = useAppStyles();
   const { colors } = useTheme();
   return (
     <ScrollView style={styles.dashboardScroll} contentContainerStyle={styles.dashboardContent}>
-      <Text style={styles.pageTitle}>Settings</Text>
       <View style={[styles.panel, { marginTop: 12 }]}>
         <Text style={styles.panelTitle}>Account</Text>
         <Text style={{ color: colors.textSecondary, marginTop: 8 }}>{session.email}</Text>
@@ -436,7 +512,7 @@ function DashboardScreen({ session, onLogout, isMobile }: { session: Session; on
   const [selectedCampus, setSelectedCampus] = useState<string>(campuses[0].id);
   const campus = useMemo(() => campuses.find((item) => item.id === selectedCampus) ?? campuses[0], [selectedCampus]);
 
-  const metricsByRole: Record<Role, Array<{ label: string; value: string; detail: string }>> = {
+  const metricsByRole: Record<Role, { label: string; value: string; detail: string }[]> = {
     SUPER_ADMIN: [
       { label: 'Total students', value: '5,149', detail: 'Across all campuses' },
       { label: 'Teachers', value: '286', detail: 'Active staff' },
@@ -475,13 +551,15 @@ function DashboardScreen({ session, onLogout, isMobile }: { session: Session; on
       <View style={[styles.heroBanner, isMobile && styles.heroBannerMobile]}>
         <View style={isMobile && styles.heroBannerCopy}>
           <Text style={styles.eyebrow}>{session.school}</Text>
-          <Text style={styles.heroBannerTitle}>Platform pulse</Text>
-          <Text style={styles.heroBannerSubtitle}>
-            {session.email} · {roleLabels[session.role]}
-          </Text>
         </View>
         <Text style={styles.statusBadge}>Healthy</Text>
       </View>
+
+      <AdmissionsDashboardSummary />
+
+      <StaffDashboardSummary />
+
+      <FeeDashboardSummary />
 
       <View style={styles.statsGrid}>
         {metricsByRole[session.role].map((item) => {
@@ -516,19 +594,19 @@ function DashboardScreen({ session, onLogout, isMobile }: { session: Session; on
           </View>
 
           <View style={styles.campusMetrics}>
-            <View style={styles.statCell}>
+            <View style={[styles.statCell, isMobile && styles.statCellMobile]}>
               <Text style={styles.statLabel}>Students</Text>
               <Text style={styles.statValue}>{campus.students}</Text>
             </View>
-            <View style={styles.statCell}>
+            <View style={[styles.statCell, isMobile && styles.statCellMobile]}>
               <Text style={styles.statLabel}>Teachers</Text>
               <Text style={styles.statValue}>{campus.teachers}</Text>
             </View>
-            <View style={styles.statCell}>
+            <View style={[styles.statCell, isMobile && styles.statCellMobile]}>
               <Text style={styles.statLabel}>Attendance</Text>
               <Text style={styles.statValue}>{campus.attendance}</Text>
             </View>
-            <View style={styles.statCell}>
+            <View style={[styles.statCell, isMobile && styles.statCellMobile]}>
               <Text style={styles.statLabel}>Fees</Text>
               <Text style={styles.statValue}>{campus.fees}</Text>
             </View>

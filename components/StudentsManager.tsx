@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Platform, Alert } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Platform, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
+import { DataTable } from './ui/DataTable';
+import { loadAcademicSetup } from '../api/academicSetup';
 import { apiDownload, apiJson } from '../api/client';
-import StudentFormModal from './StudentFormModal';
 import BulkUploadModal from './BulkUploadModal';
 
 type Filters = {
@@ -14,18 +16,74 @@ type Filters = {
   section: string;
 };
 
-export default function StudentsManager({ session }: any) {
-  const { colors } = useTheme();
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
-  const [formStudent, setFormStudent] = useState<any>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [filters, setFilters] = useState<Filters>({ q: '', admissionNo: '', firstName: '', classGrade: '', section: '' });
-  const [importSummary, setImportSummary] = useState('');
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+  colors,
+  compact,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  colors: { textSecondary: string; border: string; surface: string; text: string; brand: string };
+  compact?: boolean;
+}) {
+  return (
+    <View style={{ flexGrow: 1, minWidth: compact ? 0 : 120, flexBasis: compact ? '100%' : 120, width: compact ? '100%' : undefined }}>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>{label}</Text>
+      {Platform.OS === 'web' ? (
+        <select
+          value={value}
+          onChange={(event: { target: { value: string } }) => onChange(event.target.value)}
+          style={{
+            width: '100%',
+            height: 40,
+            borderRadius: 9,
+            border: `1px solid ${colors.border}`,
+            background: colors.surface,
+            color: colors.text,
+            padding: '0 10px',
+            fontSize: 13,
+          }}
+        >
+          <option value="">All</option>
+          {options.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          <Pressable onPress={() => onChange('')} style={{ borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8, borderColor: value ? colors.border : colors.brand }}>
+            <Text style={{ color: colors.text, fontSize: 13 }}>{value || 'All'}</Text>
+          </Pressable>
+          {options.map((opt) => (
+            <Pressable key={opt} onPress={() => onChange(opt)} style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: value === opt ? colors.brand : colors.border }}>
+              <Text style={{ fontSize: 12, color: colors.text }}>{opt}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
-  useEffect(() => { fetchStudents(); }, []);
+export default function StudentsManager({ session }: { session?: { school?: string } }) {
+  const { colors } = useTheme();
+  const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const compact = width < 820;
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showBulk, setShowBulk] = useState(false);
+  const [filters, setFilters] = useState<Filters>({ q: '', admissionNo: '', firstName: '', classGrade: '', section: '' });
+  const [academicClasses, setAcademicClasses] = useState<string[]>([]);
+  const [academicSections, setAcademicSections] = useState<string[]>([]);
+  const [importSummary, setImportSummary] = useState('');
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
 
   const activeQuery = (source: Filters = filters) => {
     const q: Record<string, string> = {};
@@ -37,10 +95,10 @@ export default function StudentsManager({ session }: any) {
     return q;
   };
 
-  const fetchStudents = async (source?: Filters) => {
+  const fetchStudents = useCallback(async (source?: Filters) => {
     setLoading(true);
     try {
-      const qs = new URLSearchParams(activeQuery(source)).toString();
+      const qs = new URLSearchParams(activeQuery(source ?? filtersRef.current)).toString();
       const json = await apiJson<any[]>(`/api/students${qs ? '?' + qs : ''}`);
       setStudents(Array.isArray(json) ? json : []);
     } catch (e) {
@@ -48,14 +106,23 @@ export default function StudentsManager({ session }: any) {
       Alert.alert('Error', 'Failed to fetch students');
     }
     setLoading(false);
-  };
+  }, []);
 
-  const openCreate = () => { setFormStudent(null); setEditingId(null); setShowForm(true); };
-  const openEdit = (s: any) => { setFormStudent(s); setEditingId(s.id); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setFormStudent(null); setEditingId(null); };
+  useFocusEffect(useCallback(() => {
+    fetchStudents(filtersRef.current);
+    loadAcademicSetup()
+      .then((data) => {
+        setAcademicClasses(data.classes.map((item) => item.name));
+        setAcademicSections(data.sections.map((item) => item.name));
+      })
+      .catch(() => undefined);
+  }, [fetchStudents]));
+
+  const openCreate = () => navigation.navigate('Student Form', { student: null, editingId: null });
+  const openEdit = (s: any) => navigation.navigate('Student Form', { student: s, editingId: s.id });
 
   const remove = async (id: number) => {
-    if (!confirmAction('Delete student?')) return;
+    if (!(await confirmAction('Delete student?'))) return;
     try {
       await apiJson(`/api/students/${id}`, { method: 'DELETE' });
       await fetchStudents();
@@ -65,20 +132,14 @@ export default function StudentsManager({ session }: any) {
     }
   };
 
-  const confirmAction = (msg: string) => {
+  const confirmAction = async (msg: string) => {
     if (Platform.OS === 'web') return window.confirm(msg);
-    let ok = false;
-    Alert.alert(msg, '', [{ text: 'Cancel' }, { text: 'OK', onPress: () => { ok = true; } }]);
-    return ok;
-  };
-
-  const downloadTemplate = async () => {
-    try {
-      await apiDownload('/api/students/template', 'students-template.xlsx');
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Error', 'Could not download template. Is the backend running on port 8083?');
-    }
+    return await new Promise<boolean>((resolve) => {
+      Alert.alert(msg, '', [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
   };
 
   const exportFiltered = async () => {
@@ -103,8 +164,8 @@ export default function StudentsManager({ session }: any) {
     padding: 10,
     borderRadius: 9,
   } as const;
-  const primaryBtn = { paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.brand, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const, flexDirection: 'row' as const, gap: 6 };
-  const ghostBtn = { paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surface, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: 'center' as const, justifyContent: 'center' as const, flexDirection: 'row' as const, gap: 6 };
+  const primaryBtn = { minHeight: 40, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.brand, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const, flexDirection: 'row' as const, gap: 6 };
+  const ghostBtn = { minHeight: 40, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surface, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: 'center' as const, justifyContent: 'center' as const, flexDirection: 'row' as const, gap: 6 };
 
   const emptyFilters = (): Filters => ({ q: '', admissionNo: '', firstName: '', classGrade: '', section: '' });
 
@@ -114,7 +175,7 @@ export default function StudentsManager({ session }: any) {
     filters.classGrade.trim() ? { key: 'classGrade' as const, label: `Class: ${filters.classGrade.trim()}` } : null,
     filters.section.trim() ? { key: 'section' as const, label: `Section: ${filters.section.trim()}` } : null,
     filters.q.trim() ? { key: 'q' as const, label: `Search: ${filters.q.trim()}` } : null,
-  ].filter(Boolean) as Array<{ key: keyof Filters; label: string }>;
+  ].filter((item): item is { key: keyof Filters; label: string } => item !== null);
 
   const clearFilters = () => {
     const cleared = emptyFilters();
@@ -130,13 +191,13 @@ export default function StudentsManager({ session }: any) {
 
   const classOptions = useMemo(() => {
     const fromData = students.map((s) => String(s.classGrade || '').trim()).filter(Boolean);
-    return Array.from(new Set(['8', '9', '10', ...fromData])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [students]);
+    return Array.from(new Set([...academicClasses, ...fromData])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [students, academicClasses]);
 
   const sectionOptions = useMemo(() => {
     const fromData = students.map((s) => String(s.section || '').trim()).filter(Boolean);
-    return Array.from(new Set(['A', 'B', ...fromData])).sort();
-  }, [students]);
+    return Array.from(new Set([...academicSections, ...fromData])).sort();
+  }, [students, academicSections]);
 
   const compactInput = {
     ...inputStyle,
@@ -146,56 +207,8 @@ export default function StudentsManager({ session }: any) {
     height: 36,
   } as const;
 
-  const FilterSelect = ({
-    label,
-    value,
-    options,
-    onChange,
-  }: {
-    label: string;
-    value: string;
-    options: string[];
-    onChange: (v: string) => void;
-  }) => (
-    <View style={{ flexGrow: 1, minWidth: 120, flexBasis: 120 }}>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>{label}</Text>
-      {Platform.OS === 'web' ? (
-        <select
-          value={value}
-          onChange={(e: any) => onChange(e.target.value)}
-          style={{
-            width: '100%',
-            height: 36,
-            borderRadius: 9,
-            border: `1px solid ${colors.border}`,
-            background: colors.surface,
-            color: colors.text,
-            padding: '0 10px',
-            fontSize: 13,
-          }}
-        >
-          <option value="">All</option>
-          {options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          <Pressable onPress={() => onChange('')} style={[compactInput, { borderColor: value ? colors.border : colors.brand }]}>
-            <Text style={{ color: colors.text, fontSize: 13 }}>{value || 'All'}</Text>
-          </Pressable>
-          {options.map((opt) => (
-            <Pressable key={opt} onPress={() => onChange(opt)} style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: value === opt ? colors.brand : colors.border }}>
-              <Text style={{ fontSize: 12, color: colors.text }}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-
   const fieldBox = (label: string, key: keyof Filters, placeholder?: string) => (
-    <View style={{ flexGrow: 1, minWidth: 140, flexBasis: 140 }}>
+    <View style={{ flexGrow: 1, minWidth: compact ? 0 : 140, flexBasis: compact ? '100%' : 140, width: compact ? '100%' : undefined }}>
       <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>{label}</Text>
       <TextInput
         placeholder={placeholder}
@@ -206,26 +219,6 @@ export default function StudentsManager({ session }: any) {
       />
     </View>
   );
-
-  const columns = [
-    { key: 'admissionNo', label: 'Admission No', width: '12%' },
-    { key: 'name', label: 'Name', width: '16%' },
-    { key: 'classGrade', label: 'Class', width: '7%' },
-    { key: 'section', label: 'Section', width: '7%' },
-    { key: 'apaarId', label: 'APAAR ID', width: '13%' },
-    { key: 'guardianName', label: 'Guardian', width: '14%' },
-    { key: 'feeStatus', label: 'Fees', width: '10%' },
-    { key: 'attendancePercent', label: 'Attendance', width: '11%' },
-    { key: 'actions', label: 'Actions', width: '10%' },
-  ];
-
-  const cell = (width: string, extra: Record<string, any> = {}) => ({
-    ...(Platform.OS === 'web' ? { display: 'table-cell' as const, verticalAlign: 'middle' as const } : {}),
-    width,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    ...extra,
-  });
 
   const initials = (s: any) => `${(s.firstName || ' ')[0]}${(s.lastName || ' ')[0]}`.toUpperCase();
 
@@ -274,13 +267,8 @@ export default function StudentsManager({ session }: any) {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }} contentContainerStyle={{ paddingBottom: 120 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 12 }}>
-        <View style={{ minWidth: 0, flex: 1 }}>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: colors.text }}>Students</Text>
-          <Text style={{ marginTop: 7, color: colors.textSecondary }}>Roster, bulk Excel upload, template download, and filtered export.</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg, padding: compact ? 12 : 16 }} contentContainerStyle={{ paddingBottom: 120 }}>
+      <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
           <Pressable onPress={openCreate} style={primaryBtn}>
             <Ionicons name="add" size={16} color={colors.onBrand} />
             <Text style={{ color: colors.onBrand, fontWeight: '600', fontSize: 13 }}>Add</Text>
@@ -289,15 +277,10 @@ export default function StudentsManager({ session }: any) {
             <Ionicons name="cloud-upload-outline" size={16} color={colors.textSecondary} />
             <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Bulk upload</Text>
           </Pressable>
-          <Pressable onPress={downloadTemplate} style={ghostBtn}>
-            <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
-            <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Download template</Text>
-          </Pressable>
           <Pressable onPress={exportFiltered} style={ghostBtn}>
             <Ionicons name="share-outline" size={16} color={colors.textSecondary} />
             <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Export</Text>
           </Pressable>
-        </View>
       </View>
 
       {session?.school ? <Text style={{ marginBottom: 10, color: colors.textMuted, fontSize: 13 }}>{session.school}</Text> : null}
@@ -305,7 +288,7 @@ export default function StudentsManager({ session }: any) {
 
       <View style={{ marginBottom: 14, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <View style={{ flex: 1, minWidth: 220, height: 36, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 9, paddingHorizontal: 10 }}>
+          <View style={{ flex: 1, minWidth: 0, flexBasis: compact ? '100%' : 180, width: compact ? '100%' : undefined, height: 40, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 9, paddingHorizontal: 10 }}>
             <Ionicons name="search-outline" size={16} color={colors.textMuted} />
             <TextInput
               placeholder="Search students..."
@@ -327,8 +310,8 @@ export default function StudentsManager({ session }: any) {
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8, alignItems: 'flex-end' }}>
           {fieldBox('Admission No', 'admissionNo', 'e.g. ADM2024001')}
           {fieldBox('First Name', 'firstName', 'e.g. Aarav')}
-          <FilterSelect label="Class" value={filters.classGrade} options={classOptions} onChange={(v) => setFilters({ ...filters, classGrade: v })} />
-          <FilterSelect label="Section" value={filters.section} options={sectionOptions} onChange={(v) => setFilters({ ...filters, section: v })} />
+          <FilterSelect label="Class" value={filters.classGrade} options={classOptions} colors={colors} compact={compact} onChange={(v) => setFilters({ ...filters, classGrade: v })} />
+          <FilterSelect label="Section" value={filters.section} options={sectionOptions} colors={colors} compact={compact} onChange={(v) => setFilters({ ...filters, section: v })} />
           <Pressable onPress={() => fetchStudents()} style={[primaryBtn, { height: 36, paddingVertical: 0, paddingHorizontal: 14 }]}>
             <Text style={{ color: colors.onBrand, fontWeight: '600', fontSize: 13 }}>Apply</Text>
           </Pressable>
@@ -350,82 +333,56 @@ export default function StudentsManager({ session }: any) {
         ) : null}
       </View>
 
-      <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, overflow: 'hidden' }}>
-        <ScrollView horizontal contentContainerStyle={{ minWidth: '100%', flexGrow: 1 }}>
-          <View style={{ width: '100%', minWidth: 1020, ...(Platform.OS === 'web' ? { display: 'table' as const } : {}) }}>
-            <View style={{ ...(Platform.OS === 'web' ? { display: 'table-row' as const } : { flexDirection: 'row' }), backgroundColor: colors.surface2, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-              {columns.map((col) => (
-                <View key={col.key} style={cell(col.width)}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>{col.label}</Text>
-                </View>
-              ))}
-            </View>
-            {loading ? (
-              <Text style={{ color: colors.textSecondary, padding: 16 }}>Loading...</Text>
-            ) : students.length === 0 ? (
-              <Text style={{ color: colors.textMuted, padding: 16 }}>No students found.</Text>
-            ) : students.map((s, index) => (
-              <View
-                key={s.id}
-                style={{
-                  ...(Platform.OS === 'web' ? { display: 'table-row' as const } : { flexDirection: 'row', alignItems: 'center' }),
-                  backgroundColor: index % 2 === 0 ? colors.surface : colors.surface2,
-                  borderBottomWidth: index === students.length - 1 ? 0 : 1,
-                  borderBottomColor: colors.border,
-                }}
-              >
-                <View style={cell('12%')}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{s.admissionNo}</Text>
-                </View>
-                <View style={cell('16%')}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ color: colors.onBrand, fontSize: 11, fontWeight: '700' }}>{initials(s)}</Text>
-                    </View>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{s.firstName} {s.lastName}</Text>
-                  </View>
-                </View>
-                <View style={cell('7%')}><Text style={{ color: colors.text, fontSize: 13 }}>{s.classGrade || '-'}</Text></View>
-                <View style={cell('7%')}><Text style={{ color: colors.text, fontSize: 13 }}>{s.section || '-'}</Text></View>
-                <View style={cell('13%')}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontVariant: ['tabular-nums'] as any }}>{apaarOf(s)}</Text>
-                </View>
-                <View style={cell('14%')}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{guardianOf(s)}</Text>
-                </View>
-                <View style={cell('10%')}>{feePill(s)}</View>
-                <View style={cell('11%')}>{attendancePill(s)}</View>
-                <View style={cell('10%')}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable
-                      onPress={() => openEdit(s)}
-                      style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Ionicons name="create-outline" size={15} color={colors.brand} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => remove(s.id)}
-                      style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.dangerText, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Ionicons name="trash-outline" size={15} color={colors.dangerText} />
-                    </Pressable>
-                  </View>
-                </View>
+      <DataTable
+        rows={students}
+        loading={loading}
+        empty="No students found."
+        keyExtractor={(student) => String(student.id)}
+        renderCard={(student) => (
+          <StudentCard
+            student={student}
+            colors={colors}
+            initials={initials(student)}
+            admissionNo={student.admissionNo || '—'}
+            classGrade={student.classGrade || '—'}
+            section={student.section || '—'}
+            apaar={apaarOf(student)}
+            guardian={guardianOf(student)}
+            phone={student.fatherMobile || student.guardianPhone || '—'}
+            fee={feeOf(student)}
+            attendance={`${attendanceOf(student).toFixed(1)}%`}
+            onEdit={() => openEdit(student)}
+            onRemove={() => remove(student.id)}
+          />
+        )}
+        columns={[
+          { key: 'admissionNo', header: 'Admission No', flex: 1.1, minWidth: 120, render: (student) => <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{student.admissionNo}</Text> },
+          { key: 'name', header: 'Name', flex: 1.7, minWidth: 180, render: (student) => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: colors.onBrand, fontSize: 11, fontWeight: '700' }}>{initials(student)}</Text>
               </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {showForm ? (
-        <StudentFormModal
-          visible
-          student={formStudent}
-          editingId={editingId}
-          onClose={closeForm}
-          onSaved={async () => { await fetchStudents(); closeForm(); }}
-        />
-      ) : null}
+              <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{student.firstName} {student.lastName}</Text>
+            </View>
+          ) },
+          { key: 'class', header: 'Class', flex: 0.7, minWidth: 72, render: (student) => <Text style={{ color: colors.text, fontSize: 13 }}>{student.classGrade || '-'}</Text> },
+          { key: 'section', header: 'Section', flex: 0.8, minWidth: 80, render: (student) => <Text style={{ color: colors.text, fontSize: 13 }}>{student.section || '-'}</Text> },
+          { key: 'apaar', header: 'APAAR ID', flex: 1.2, minWidth: 130, render: (student) => <Text style={{ color: colors.text, fontSize: 13 }}>{apaarOf(student)}</Text> },
+          { key: 'guardian', header: 'Guardian', flex: 1.3, minWidth: 130, render: (student) => <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{guardianOf(student)}</Text> },
+          { key: 'fees', header: 'Fees', flex: 0.8, minWidth: 84, render: (student) => feePill(student) },
+          { key: 'attendance', header: 'Attendance', flex: 1, minWidth: 110, render: (student) => attendancePill(student) },
+          { key: 'actions', header: 'Actions', width: 76, render: (student) => (
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Pressable onPress={() => openEdit(student)} style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="create-outline" size={15} color={colors.brand} />
+              </Pressable>
+              <Pressable onPress={() => remove(student.id)} style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.dangerText, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="trash-outline" size={15} color={colors.dangerText} />
+              </Pressable>
+            </View>
+          ) },
+        ]}
+      />
 
       <BulkUploadModal
         visible={showBulk}
@@ -436,5 +393,89 @@ export default function StudentsManager({ session }: any) {
         }}
       />
     </ScrollView>
+  );
+}
+
+function StudentCard({
+  student,
+  colors,
+  initials,
+  admissionNo,
+  classGrade,
+  section,
+  apaar,
+  guardian,
+  phone,
+  fee,
+  attendance,
+  onEdit,
+  onRemove,
+}: {
+  student: { firstName?: string; lastName?: string };
+  colors: { surface: string; border: string; brand: string; onBrand: string; text: string; textMuted: string; textSecondary: string; surface2: string; successText: string; successBg: string; dangerText: string; dangerBg: string; warningText: string; warningBg: string };
+  initials: string;
+  admissionNo: string;
+  classGrade: string;
+  section: string;
+  apaar: string;
+  guardian: string;
+  phone: string;
+  fee: string;
+  attendance: string;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const paid = fee === 'Paid';
+  const attendanceValue = Number(attendance.replace('%', ''));
+  const attendanceTone = attendanceValue >= 90 ? 'success' : attendanceValue >= 75 ? 'warning' : 'danger';
+  const attendanceColor = attendanceTone === 'success' ? colors.successText : attendanceTone === 'warning' ? colors.warningText : colors.dangerText;
+  const groups: { icon: React.ComponentProps<typeof Ionicons>['name']; title: string; rows: [string, string][] }[] = [
+    { icon: 'school-outline', title: 'Academics', rows: [['Class', classGrade], ['Section', section]] },
+    { icon: 'card-outline', title: 'Identity', rows: [['APAAR ID', apaar], ['Admission No', admissionNo]] },
+    { icon: 'people-outline', title: 'Guardian', rows: [['Guardian', guardian], ['Phone', phone]] },
+    { icon: 'cash-outline', title: 'Fees & Attendance', rows: [['Fee Status', fee], ['Attendance', attendance]] },
+  ];
+
+  return (
+    <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: colors.onBrand, fontWeight: '700', fontSize: 15 }}>{initials}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{student.firstName} {student.lastName}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{admissionNo}</Text>
+          <View style={{ marginTop: 6, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: paid ? colors.successBg : colors.dangerBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: paid ? colors.successText : colors.dangerText }} />
+            <Text style={{ color: paid ? colors.successText : colors.dangerText, fontSize: 11, fontWeight: '700' }}>{fee.toUpperCase()}</Text>
+          </View>
+        </View>
+        <Pressable onPress={onEdit} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
+        </Pressable>
+        <Pressable onPress={onRemove} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="trash-outline" size={18} color={colors.dangerText} />
+        </Pressable>
+      </View>
+      <View style={{ height: 1, backgroundColor: colors.border, marginTop: 14, marginBottom: 14 }} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 16, columnGap: 12 }}>
+        {groups.map((group) => (
+          <View key={group.title} style={{ flexGrow: 1, flexBasis: '46%', minWidth: '46%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name={group.icon} size={14} color={colors.textSecondary} />
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{group.title}</Text>
+            </View>
+            {group.rows.map(([label, value]) => (
+              <View key={label} style={{ marginBottom: 8 }}>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{label}</Text>
+                <Text style={{ color: label === 'Attendance' ? attendanceColor : label === 'Fee Status' ? (paid ? colors.successText : colors.dangerText) : colors.text, fontWeight: '700', fontSize: 14, marginTop: 2 }}>{value}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
