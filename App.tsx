@@ -109,8 +109,8 @@ function AuthScreen({ isMobile }: { isMobile: boolean }) {
   const styles = useAppStyles();
   const { login } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('admin@greenvalley.edu');
-  const [password, setPassword] = useState('Admin@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState('');
